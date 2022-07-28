@@ -90,6 +90,7 @@ class Landsat():
             landsat5_flag (bool): if True, include Landsat 5 images
             landsat7_flag (bool): if True, include Landsat 7 images
             landsat8_flag (bool): if True, include Landsat 8 images
+            landsat9_flag (bool): if True, include Landsat 9 images
 
         """
         arg_list = [
@@ -99,7 +100,8 @@ class Landsat():
             'zone_geom', 'scene_id_keep_list', 'scene_id_skip_list',
             'path_keep_list', 'row_keep_list', 'tile_keep_list', 'tile_geom',
             'refl_sur_method', 'adjust_method', 'mosaic_method', 'products',
-            'landsat4_flag', 'landsat5_flag', 'landsat7_flag', 'landsat8_flag'
+            'landsat4_flag', 'landsat5_flag', 'landsat7_flag', 'landsat8_flag',
+            'landsat9_flag'
         ]
         int_args = [
             'start_year', 'end_year', 'start_month', 'end_month',
@@ -149,8 +151,9 @@ class Landsat():
         self.dates = {
             'LT04': {'start': '1982-01-01', 'end': '1993-12-31'},
             'LT05': {'start': '1984-01-01', 'end': '2011-12-31'},
-            'LE07': {'start': '1999-01-01', 'end': today},
-            'LC08': {'start': '2013-03-24', 'end': today}
+            'LE07': {'start': '1999-01-01', 'end': '2021-09-27'}, #added end for LS7 
+            'LC08': {'start': '2013-03-24', 'end': today},
+            'LC09': {'start': '2021-10-31', 'end': today}
         }
 
     def set_landsat_from_flags(self):
@@ -164,6 +167,8 @@ class Landsat():
             landsat_list.append('LE07')
         if self.landsat8_flag:
             landsat_list.append('LC08')
+        if self.landsat9_flag:
+            landsat_list.append('LC09')
         self._landsat_list = sorted(landsat_list)
 
     def set_landsat_from_scene_id(self):
@@ -261,17 +266,19 @@ class Landsat():
             # logging.debug('  Landsat: {}'.format(landsat))
 
             # TOA reflectance collection
-            if landsat in ['LE07', 'LC08']:
-                toa_name = 'LANDSAT/{}/C01/T1_RT_TOA'.format(landsat)
-            elif landsat in ['LT05']:
-                toa_name = 'LANDSAT/{}/C01/T1_TOA'.format(landsat)
+            # if landsat in ['LE07', 'LC08']:
+            #     toa_name = 'LANDSAT/{}/C02/T1_RT_TOA'.format(landsat)
+            if landsat in ['LT05', 'LE07', 'LC08', 'LC09']:
+                # Per convo w/ charles, no need for RT data, collecting all TOA data from T1_TOA
+                toa_name = 'LANDSAT/{}/C02/T1_TOA'.format(landsat)
             elif landsat in ['LT04']:
                 # DEADBEEF - Landsat 4 Collection 1 TOA is not available yet
+                # Mar 2022, collection 2 TOA not available in GEE (GS)
                 continue
             toa_coll = ee.ImageCollection(toa_name)
 
             # At-surface reflectance collection
-            sr_name = 'LANDSAT/{}/C01/T1_SR'.format(landsat)
+            sr_name = 'LANDSAT/{}/C02/T1_L2'.format(landsat)
             if self.refl_sur_method == 'tasumi':
                 # Tasumi SR will be computed from TOA after filtering
                 sur_coll = ee.ImageCollection(toa_name)
@@ -286,13 +293,13 @@ class Landsat():
 
             # Filter non-L1T/L1TP images
             # There are a couple of non-L1TP images in LE07 collection 1
-            if landsat in ['LE07']:
-                toa_coll = toa_coll.filterMetadata(
-                    'DATA_TYPE', 'equals', 'L1TP')
+            # if landsat in ['LE07']:
+            #     toa_coll = toa_coll.filterMetadata(
+            #         'DATA_TYPE', 'equals', 'L1TP')
                 # sur_coll = sur_coll.filterMetadata(
                 #     'DATA_TYPE', 'equals', 'L1TP')
             # Exclude 2012 Landsat 5 images
-            elif landsat in ['LT05']:
+            if landsat in ['LT05']:
                 toa_coll = toa_coll.filter(
                     ee.Filter.calendarRange(1984, 2011, 'year'))
                 sur_coll = sur_coll.filter(
@@ -368,7 +375,9 @@ class Landsat():
             toa_coll = toa_coll.map(landsat_acca_band_func)
 
             # Extract Fmask band from QA band
-            toa_coll = toa_coll.map(landsat_bqa_fmask_func)
+            # toa_coll = toa_coll.map(landsat_bqa_fmask_func)
+            # updated 'fmask' for collection 2 from QA_PIXEL
+            toa_coll = toa_coll.map(landsat_col2_cloudmask_func)
 
             # Modify landsat collections to have same band names
             if landsat in ['LT04', 'LT05']:
@@ -380,6 +389,9 @@ class Landsat():
             elif landsat in ['LC08']:
                 toa_coll = toa_coll.map(landsat8_toa_band_func)
                 sur_coll = sur_coll.map(landsat8_sur_band_func)
+            elif landsat in ['LC09']: 
+                toa_coll = toa_coll.map(landsat9_toa_band_func)
+                sur_coll = sur_coll.map(landsat9_sur_band_func)
 
             # Compute Tasumi SR (if necessary) after filtering collections
             # DEADBEEF - This may need to be moved before band functions
@@ -387,10 +399,11 @@ class Landsat():
                 sur_coll = sur_coll.map(self.tasumi_sr_func)
 
             # Apply OLI 2 ETM or ETM 2 OLI adjustments
-            if self.refl_sur_method == 'tasumi':
-                sur_coll = sur_coll.map(self.tasumi_sr_adjust_func)
-            elif self.refl_sur_method == 'usgs_sr':
-                sur_coll = sur_coll.map(self.usgs_sr_adjust_func)
+            # Removed 7 Mar 2022; collection 2 is already cross-sensor calibrated
+            # if self.refl_sur_method == 'tasumi':
+            #     sur_coll = sur_coll.map(self.tasumi_sr_adjust_func)
+            # elif self.refl_sur_method == 'usgs_sr':
+                # sur_coll = sur_coll.map(self.usgs_sr_adjust_func)
 
             # Join the TOA and SR collections
             scene_id_filter = ee.Filter.equals(
@@ -1310,7 +1323,7 @@ def landsat_acca_band_func(refl_toa_img):
     return refl_toa_img.addBands(cloud_score)
 
 
-def landsat_bqa_fmask_func(refl_toa_img):
+def landsat_bqa_fmask_func(refl_toa_img): # Mapped to TOA coll 7 Mar 2022 (line 378)
     """Extract Fmask image from Landsat TOA Collection 1 QA band
 
     https://landsat.usgs.gov/collectionqualityband
@@ -1354,38 +1367,64 @@ def landsat_bqa_fmask_func(refl_toa_img):
     return refl_toa_img.addBands(fmask_img.rename(['fmask']))
 
 
-def landsat_pixel_qa_fmask_func(refl_sur_img):
-    """Extract Fmask image from Landsat SR Collection 1 pixel_qa band
+# def landsat_pixel_qa_fmask_func(refl_sur_img): # NOT used in script as of 7 Mar 2022
+#     """Extract Fmask image from Landsat SR Collection 1 pixel_qa band
 
-    https://landsat.usgs.gov/sites/default/files/documents/ledaps_product_guide.pdf
-    https://code.earthengine.google.com/eb6ce4a7af177670a6038c4bd53724fe
+#     https://landsat.usgs.gov/sites/default/files/documents/ledaps_product_guide.pdf
+#     https://code.earthengine.google.com/eb6ce4a7af177670a6038c4bd53724fe
 
-    Set fmask band to old style Fmask values
-        0 - Clear land
-        1 - Clear water
-        2 - Cloud shadow
-        3 - Snow
-        4 - Cloud
-    """
-    qa_img = ee.Image(refl_sur_img.select(['pixel_qa']))
+#     Set fmask band to old style Fmask values
+#         0 - Clear land
+#         1 - Clear water
+#         2 - Cloud shadow
+#         3 - Snow
+#         4 - Cloud
+#     """
+#     qa_img = ee.Image(refl_sur_img.select(['pixel_qa']))
 
-    # Extracting cloud masks from pixel_qa using rightShift() and bitwiseAnd()
-    # Cloud (med & high confidence), then snow, then shadow, then fill
-    # Low confidence clouds tend to be the FMask buffer
-    fill_mask = qa_img.bitwiseAnd(1).neq(0)                   # bits: 0
-    # clear_mask = qa_img.rightShift(1).bitwiseAnd(2).neq(0)  # bits: 1
-    water_mask = qa_img.rightShift(2).bitwiseAnd(1).neq(0)    # bits: 2
-    shadow_mask = qa_img.rightShift(3).bitwiseAnd(1).neq(0)   # bits: 3
-    snow_mask = qa_img.rightShift(4).bitwiseAnd(1).neq(0)     # bits: 4
-    cloud_mask = qa_img.rightShift(5).bitwiseAnd(1).neq(0)    # bits: 5
-    cloud_conf = qa_img.rightShift(6).bitwiseAnd(3).gte(1)    # bits: 6, 7
-    fmask_img = fill_mask \
-        .add(water_mask.multiply(1)) \
+#     # Extracting cloud masks from pixel_qa using rightShift() and bitwiseAnd()
+#     # Cloud (med & high confidence), then snow, then shadow, then fill
+#     # Low confidence clouds tend to be the FMask buffer
+#     fill_mask = qa_img.bitwiseAnd(1).neq(0)                   # bits: 0
+#     # clear_mask = qa_img.rightShift(1).bitwiseAnd(2).neq(0)  # bits: 1
+#     water_mask = qa_img.rightShift(2).bitwiseAnd(1).neq(0)    # bits: 2
+#     shadow_mask = qa_img.rightShift(3).bitwiseAnd(1).neq(0)   # bits: 3
+#     snow_mask = qa_img.rightShift(4).bitwiseAnd(1).neq(0)     # bits: 4
+#     cloud_mask = qa_img.rightShift(5).bitwiseAnd(1).neq(0)    # bits: 5
+#     cloud_conf = qa_img.rightShift(6).bitwiseAnd(3).gte(1)    # bits: 6, 7
+#     fmask_img = fill_mask \
+#         .add(water_mask.multiply(1)) \
+#         .add(shadow_mask.multiply(2)) \
+#         .add(snow_mask.multiply(3)) \
+#         .add(cloud_mask.And(cloud_conf).multiply(4))
+
+#     return refl_sur_img.addBands(fmask_img.rename(['fmask']))
+
+
+# Cloud Mask for col 2 SR using bits (GS March 2022)
+#  returns 'fmask' band to represent
+def landsat_col2_cloudmask_func(col2_img):
+    cirrus_flag = True
+    dilate_flag = True
+    qa_img = col2_img.select(['QA_PIXEL'])
+    #     .And(qa_img.rightShift(6).bitwiseAnd(3).gte(cloud_confidence)) issue with bit 6
+    water_mask = qa_img.rightShift(7).bitwiseAnd(1).neq(0)
+    shadow_mask = qa_img.rightShift(4).bitwiseAnd(1).neq(0)
+    snow_mask = qa_img.rightShift(5).bitwiseAnd(1).neq(0)
+    cloud_mask = qa_img.rightShift(3).bitwiseAnd(1).neq(0)
+    if cirrus_flag:
+        cloud_mask = cloud_mask.Or(qa_img.rightShift(2).bitwiseAnd(1).neq(0))
+    if dilate_flag:
+        cloud_mask = cloud_mask.Or(qa_img.rightShift(1).bitwiseAnd(1).neq(0))
+
+    fmask_img = water_mask \
         .add(shadow_mask.multiply(2)) \
         .add(snow_mask.multiply(3)) \
-        .add(cloud_mask.And(cloud_conf).multiply(4))
+        .add(cloud_mask.multiply(4))
 
-    return refl_sur_img.addBands(fmask_img.rename(['fmask']))
+    return col2_img.addBands(fmask_img.rename(['fmask']))
+
+
 
     # # Extracting cloud masks from qa band using band values directly
     # # Cloud, then shadow, then snow, then fill
@@ -1484,7 +1523,7 @@ def landsat7_toa_band_func(refl_img):
     return refl_img \
         .select(
             ['B1', 'B2', 'B3', 'B4', 'B5', 'B7',
-             'B6_VCID_1', 'cloud_score', 'fmask'],
+             'B6_VCID_1', 'cloud_score', 'fmask'],  
             refl_toa_bands + ['lst', 'cloud_score', 'fmask']) \
         .copyProperties(refl_img, system_properties) \
         .setMulti({
@@ -1515,28 +1554,55 @@ def landsat8_toa_band_func(refl_img):
             'k2_constant': refl_img.get('K2_CONSTANT_BAND_10')})
 
 
+def landsat9_toa_band_func(refl_img):
+    """Rename Landsat 9 bands to common band names
+
+    For now, don't include coastal, cirrus, pan-chromatic, or 2nd thermal band
+    Set K1 and K2 coefficients used for computing land surface temperature
+    Set Tasseled cap coefficients
+
+    ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8',
+     'B9', 'B10', 'B11', 'cloud_score'],
+    ['coastal', 'blue', 'green', 'red', 'nir', 'swir1', 'swir2',
+     'pan', 'cirrus', 'thermal1', 'thermal2', 'cloud_score'])
+    """
+    return refl_img \
+        .select(
+            ['B2', 'B3', 'B4', 'B5', 'B6', 'B7',
+             'B10', 'cloud_score', 'fmask'],
+            refl_toa_bands + ['lst', 'cloud_score', 'fmask']) \
+        .copyProperties(refl_img, system_properties) \
+        .setMulti({
+            'k1_constant': refl_img.get('K1_CONSTANT_BAND_10'),
+            'k2_constant': refl_img.get('K2_CONSTANT_BAND_10')})
+
+
 def landsat5_sur_band_func(refl_img):
     """Rename Landsat 4 and 5 bands to common band names
 
-    Change band order to match Landsat 8
+    Change band order to match Landsat 8/9
     Scale values by 0.0001
     """
     return refl_img \
-        .select(['B1', 'B2', 'B3', 'B4', 'B5', 'B7'], refl_sur_bands) \
-        .multiply(0.0001) \
+        .select(
+            ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7'], 
+            refl_sur_bands) \
+        .multiply(0.0000275).add(-0.2) \
         .copyProperties(refl_img, system_properties)
 
 
 def landsat7_sur_band_func(refl_img):
     """Rename Landsat 7 bands to common band names
 
-    Change band order to match Landsat 8
+    Change band order to match Landsat 8/9
     For now, don't include pan-chromatic or high gain thermal band
-    Scale values by 0.0001
+    Scale values by collection 2 vals (2.75e-05 - 0.2)
     """
     return refl_img \
-        .select(['B1', 'B2', 'B3', 'B4', 'B5', 'B7'], refl_sur_bands) \
-        .multiply(0.0001) \
+        .select(
+            ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7'], 
+            refl_sur_bands) \
+        .multiply(0.0000275).add(-0.2) \
         .copyProperties(refl_img, system_properties)
 
 
@@ -1544,11 +1610,27 @@ def landsat8_sur_band_func(refl_img):
     """Rename Landsat 8 bands to common band names
 
     For now, don't include coastal, cirrus, or pan-chromatic
-    Scale values by 0.0001
+    Scale values by collection 2 vals (2.75e-05 - 0.2)
     """
     return refl_img \
-        .select(['B2', 'B3', 'B4', 'B5', 'B6', 'B7'], refl_sur_bands) \
-        .multiply(0.0001) \
+        .select(
+            ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7'],
+            refl_sur_bands) \
+        .multiply(0.0000275).add(-0.2) \
+        .copyProperties(refl_img, system_properties)
+
+
+def landsat9_sur_band_func(refl_img):
+    """Rename Landsat 8 bands to common band names
+
+    For now, don't include coastal, cirrus, or pan-chromatic
+    Scale values by collection 2 vals (2.75e-05 - 0.2)
+    """
+    return refl_img \
+        .select(
+            ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7'],
+            refl_sur_bands) \
+        .multiply(0.0000275).add(-0.2) \
         .copyProperties(refl_img, system_properties)
 
 
