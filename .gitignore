@@ -1,0 +1,33 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyCharm project settings
+.idea
+
+*.bak
+.cache
+*.json
+*.log
+*.lock
+schema.ini
+.DS_Store
+
+example/stats
+example/stats*
+example/images
+example/images*
+example/quicklooks*
+beamer_v*/annual*
+beamer_v*/composite*
+beamer_v*/images*
+beamer_v*/stats*
+
+example_tasumi*
+example_usgs_sr*
+
+projects

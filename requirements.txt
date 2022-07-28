@@ -1,0 +1,11 @@
+bokeh
+configparser=3.5.0
+earthengine-api>=0.1.141
+gdal<3.0.0
+numpy
+openpyxl
+pandas>=0.23.0
+pytest
+requests
+scikit-learn
+scipy
