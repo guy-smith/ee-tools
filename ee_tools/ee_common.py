@@ -1131,9 +1131,9 @@ def beamer_func(img):
 
 
 #def etstar_func(evi, etstar_type='mean', evi_min=0.0700019):
-def etstar_func(ndvi, etstar_type='mean', ndvi_min=0.0315):
+def etstar_func(ndvi, etstar_type='mean', ndvi_min=0.032):
 #def etstar_func(savi, etstar_type='mean', savi_min=0.035):
-    """Compute Beamer ET* from EVI (assuming at-surface reflectance)"""
+    """Compute Beamer ET* from NDVI Landsat Collection 2(assuming at-surface reflectance)"""
     #def etstar(img, c0, c1, c2):
     def etstar(img, c0, c1):       
         """Beamer ET*"""
@@ -1148,23 +1148,23 @@ def etstar_func(ndvi, etstar_type='mean', ndvi_min=0.0315):
             .max(0)
     if etstar_type == 'mean':
         #return etstar(evi, -0.1955, 2.9042, -1.5916)
-        return etstar(ndvi, -0.035, 1.1277)
+        return etstar(ndvi, -0.035, 1.1097)
         #return etstar(savi, -0.0983, 3.2848, -2.2715)
     elif etstar_type == 'lpi':
         #return etstar(evi, -0.2871, 2.9192, -1.6263)
-        return etstar(ndvi, -0.1667, 1.1118)
+        return etstar(ndvi, -0.172, 1.0936)
         #return etstar(savi, -0.2734, 3.3057, -2.347)
     elif etstar_type == 'upi':
         #return etstar(evi, -0.1039, 2.8893, -1.5569)
-        return etstar(ndvi, 0.0967, 1.1437)
+        return etstar(ndvi, 0.102, 1.1258)
         #return etstar(savi, 0.0767, 3.2639, -2.1959)
     elif etstar_type == 'lci':
         #return etstar(evi, -0.2142, 2.9175, -1.6554)
-        return etstar(ndvi, -0.0469, 1.0733)
+        return etstar(ndvi, -0.0477, 1.0544)
         #return etstar(savi, -0.1244, 3.3001, -2.4427)
     elif etstar_type == 'uci':
         #return etstar(evi, -0.1768, 2.8910, -1.5278)
-        return etstar(ndvi, -0.0231, 1.1822)
+        return etstar(ndvi, -0.0223, 1.165)
         #return etstar(savi, -0.0722, 3.2695, -2.1003)
 
 

@@ -746,8 +746,8 @@ def landsat_etg_func(img):
 #def etstar_func(evi, etstar_type='mean'):
 def etstar_func(ndvi, etstar_type='mean'):
 #def etstar_func(savi, etstar_type='mean'):
-    """Compute Beamer ET* from EVI (assuming at-surface reflectance)"""
-    def etstar(img, c0, c1, ndvi_min=0.0315):
+    """Compute Beamer ET* from NDVI Landsat Collection 2(assuming at-surface reflectance)"""
+    def etstar(img, c0, c1, ndvi_min=0.032):
         """Beamer ET*"""
         return ee.Image(img) \
             .max(ndvi_min) \
@@ -768,10 +768,13 @@ def etstar_func(ndvi, etstar_type='mean'):
         # 40 site-year updated coeffs
         #return etstar(evi, -0.1862, 3.4056, -2.2349)
         
-        # 56 site-year updated coeffs
+        # 54 site-year updated coeffs
         #return etstar(evi, -0.0920, 2.6973, -1.5531)
-        return etstar(ndvi, -0.035, 1.1277)
+        #return etstar(ndvi, -0.035, 1.1277)
         #return etstar(savi, -0.0983, 3.2848, -2.2715)
+
+        # 54 site-year (Landsat Collection 2) coeffs
+        return etstar(ndvi, -0.035, 1.1097)
     
     elif etstar_type == 'lpi':
         #return etstar(evi, -0.2871, 2.9192, -1.6263)
@@ -779,10 +782,13 @@ def etstar_func(ndvi, etstar_type='mean'):
         # 40 site-year updated lpi coeffs
         #return etstar(evi, -0.3262, 3.4257, -2.2817)
 
-        # 56 site-year updated lpi coeffs
+        # 54 site-year updated lpi coeffs
         #return etstar(evi, -0.297, 2.7211, -1.6219)
-        return etstar(ndvi, -0.1667, 1.1118)
+        #return etstar(ndvi, -0.1667, 1.1118)
         #return etstar(savi, -0.2734, 3.3057, -2.347)
+
+        # 54 site-year (Landsat Collection 2) coeffs
+        return etstar(ndvi, -0.172, 1.0936)
     
     elif etstar_type == 'upi':
         #return etstar(evi, -0.1039, 2.8893, -1.5569)
@@ -790,10 +796,13 @@ def etstar_func(ndvi, etstar_type='mean'):
         # 40 site-year updated upi coeffs
         #return etstar(evi, -0.0461, 3.3856, -2.1881)
 
-        # 56 site-year updated upi coeffs
+        # 54 site-year updated upi coeffs
         #return etstar(evi, 0.1129, 2.6735, -1.4842)
-        return etstar(ndvi, 0.0967, 1.1437)
+        #return etstar(ndvi, 0.0967, 1.1437)
         #return etstar(savi, 0.0767, 3.2639, -2.1959)
+
+        # 54 site-year (Landsat Collection 2) coeffs
+        return etstar(ndvi, 0.102, 1.1258)
         
     elif etstar_type == 'lci':
         #return etstar(evi, -0.2142, 2.9175, -1.6554)
@@ -803,8 +812,11 @@ def etstar_func(ndvi, etstar_type='mean'):
 
         # 56 site-year updated lci coeffs
         #return etstar(evi, -0.1242, 2.7296, -1.7235)
-        return etstar(ndvi, -0.0469, 1.0733)
+        #return etstar(ndvi, -0.0469, 1.0733)
         #return etstar(savi, -0.1244, 3.3001, -2.4427)
+
+        # 54 site-year (Landsat Collection 2) coeffs
+        return etstar(ndvi, -0.0477, 1.0544)
     
     elif etstar_type == 'uci':
         #return etstar(evi, -0.1768, 2.8910, -1.5278)
@@ -812,11 +824,13 @@ def etstar_func(ndvi, etstar_type='mean'):
         # 40 site-year updated uci coeffs
         #return etstar(evi, -0.1573, 3.3573, -2.1036)
 
-        # 56 site-year updated uci coeffs
+        # 54 site-year updated uci coeffs
         #return etstar(evi, -0.0599, 2.665, -1.3827)
-        return etstar(ndvi, -0.0231, 1.1822)
+        #return etstar(ndvi, -0.0231, 1.1822)
         #return etstar(savi, -0.0722, 3.2695, -2.1003)
-        
+
+        # 54 site-year (Landsat Collection 2) coeffs        
+        return etstar(ndvi, -0.0223, 1.165)
 
 def etg_func(etstar, eto, ppt):
     """Compute groundwater ET (ETg) (ET* x (ETo - PPT))"""
